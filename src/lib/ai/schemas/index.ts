@@ -1,0 +1,16 @@
+import { z } from 'zod';
+export const servicesSuggestOutputSchema = z.object({ services: z.array(z.string().min(1).max(80)).min(1).max(10) });
+export const locationsExpandOutputSchema = z.object({ locations: z.array(z.string().min(1).max(80)).min(1).max(10) });
+export const blogTitlesOutputSchema = z.object({ titles: z.array(z.string().min(1).max(160)).min(1).max(10) });
+export const keywordClusterItemSchema = z.object({ pageType: z.string().min(1).max(80), primary: z.array(z.string()), secondary: z.array(z.string()), longtail: z.array(z.string()) });
+export const keywordClusterOutputSchema = z.object({ clusters: z.array(keywordClusterItemSchema).min(1).max(30) });
+export const contentGenerateOutputSchema = z.object({ html: z.string().min(200).max(80000), title: z.string().min(1).max(160), metaDescription: z.string().min(20).max(200), wordCount: z.number().int().min(100).max(10000), jsonLd: z.record(z.string(), z.unknown()).optional() });
+export const imageBudgetOutputSchema = z.object({ tier: z.enum(['budget','standard','premium']), imageCount: z.number().int(), estimatedCostUsd: z.number(), reasoning: z.string() });
+export const imageGenerateOutputSchema = z.object({ imageUrl: z.string(), prompt: z.string(), model: z.string(), width: z.number(), height: z.number() });
+export type ServicesSuggestOutput = z.infer<typeof servicesSuggestOutputSchema>;
+export type LocationsExpandOutput = z.infer<typeof locationsExpandOutputSchema>;
+export type BlogTitlesOutput = z.infer<typeof blogTitlesOutputSchema>;
+export type KeywordClusterOutput = z.infer<typeof keywordClusterOutputSchema>;
+export type ContentGenerateOutput = z.infer<typeof contentGenerateOutputSchema>;
+export type ImageBudgetOutput = z.infer<typeof imageBudgetOutputSchema>;
+export type ImageGenerateOutput = z.infer<typeof imageGenerateOutputSchema>;

@@ -1,0 +1,79 @@
+import archiver from 'archiver';
+import { createWriteStream, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { ContentGenerateOutput } from '../ai/schemas';
+
+const SITES_DIR = process.env.SITES_DIR || '.data/sites';
+
+function slugify(name: string): string { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'page'; }
+function escapeHtml(s: string): string { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+function buildPageHtml(opts: { siteId: string; businessName: string; theme: string; niche: string; content: ContentGenerateOutput; allPages: string[] }): string {
+  const { siteId, businessName, theme, niche, content, allPages } = opts;
+  const jsonLd = content.jsonLd || { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: businessName, description: content.metaDescription, url: `https://preview.localloop.dev/sites/${siteId}`, image: '/assets/cafe-color.png', priceRange: '$$' };
+  const navHtml = allPages.slice(0, 8).map((p) => { const slug = slugify(p); const href = slug === 'home' ? 'index.html' : `${slug}.html`; return `<a href="${href}">${escapeHtml(p)}</a>`; }).join('\n      ');
+  const asideHtml = allPages.slice(0, 8).map((p) => { const slug = slugify(p); const href = slug === 'home' ? 'index.html' : `${slug}.html`; return `<li><a href="${href}">${escapeHtml(p)}</a></li>`; }).join('\n      ');
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(content.title)}</title>
+<meta name="description" content="${escapeHtml(content.metaDescription)}" />
+<script type="application/ld+json">
+${JSON.stringify(jsonLd, null, 2)}
+</script>
+<style>
+body{font-family:-apple-system,'Inter',sans-serif;margin:0;color:#101010;background:#fafaf8;line-height:1.6}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:#fff;border-bottom:1px solid #ebebe6}
+.wordmark{font-size:22px;font-weight:800;letter-spacing:-1.2px;color:#c7350c;text-decoration:none}
+nav{display:flex;gap:18px;font-size:14px}
+nav a{color:#696969;text-decoration:none}
+nav a:hover{color:#c7350c}
+main{padding:40px 24px;max-width:760px;margin:0 auto}
+main h1{font-size:clamp(28px,5vw,44px);font-weight:800;margin:0 0 16px;letter-spacing:-.04em}
+main h2{font-size:24px;font-weight:700;margin:32px 0 12px}
+main p{font-size:17px;color:#4a4a47;margin:0 0 16px}
+main a{color:#c7350c}
+aside{background:#f6f6f2;border-top:1px solid #ebebe6;padding:32px 24px;margin-top:60px}
+aside h3{font-size:14px;font-weight:650;color:#696969;text-transform:uppercase;letter-spacing:.5px;margin:0 0 12px}
+aside ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+aside a{color:#101010;text-decoration:none;font-size:14px}
+footer{text-align:center;padding:24px;color:#86867f;font-size:12px}
+.badge{display:inline-block;padding:4px 10px;background:#c7350c;color:#fff;border-radius:3px;font-size:11px;letter-spacing:1px;font-weight:650;margin-bottom:18px}
+</style>
+</head>
+<body>
+<header><a class="wordmark" href="index.html">${escapeHtml(businessName)}.</a><nav>${navHtml}</nav></header>
+<main><div class="badge">${escapeHtml(theme.toUpperCase())} THEME</div>${content.html}</main>
+<aside><h3>More from ${escapeHtml(businessName)}</h3><ul>${asideHtml}</ul></aside>
+<footer>© ${new Date().getFullYear()} ${escapeHtml(businessName)} · Built with webshop</footer>
+</body>
+</html>`;
+}
+
+export async function packageSite(site: any, project: any, allPages: string[], pageContents: Array<{ pageName: string; content: ContentGenerateOutput }>): Promise<string> {
+  mkdirSync(SITES_DIR, { recursive: true });
+  const zipPath = join(SITES_DIR, `${site.id}.zip`);
+  return new Promise((resolve, reject) => {
+    const output = createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } } as any);
+    output.on('close', () => resolve(zipPath));
+    output.on('error', reject);
+    archive.on('error', reject);
+    archive.pipe(output);
+    archive.append(JSON.stringify({ siteId: site.id, businessName: project.businessName, theme: site.theme, imageTier: site.imageTier, pages: allPages, generatedAt: new Date().toISOString(), generator: 'webshop' }, null, 2), { name: 'manifest.json' });
+    for (const { pageName, content } of pageContents) {
+      const slug = slugify(pageName);
+      const filename = slug === 'home' ? 'index.html' : `${slug}.html`;
+      const html = buildPageHtml({ siteId: site.id, businessName: project.businessName || site.businessName || 'Untitled', theme: site.theme, niche: project.niche || '', content, allPages });
+      archive.append(html, { name: filename });
+    }
+    archive.append(`# ${project.businessName || 'Untitled'}\n\nGenerated by webshop.\n\n- Site ID: ${site.id}\n- Pages: ${allPages.length}\n- Generated: ${new Date().toISOString()}\n`, { name: 'README.md' });
+    archive.finalize();
+  });
+}
+
+export function getZipPath(siteId: string): string { return join(SITES_DIR, `${siteId}.zip`); }
+export function zipExists(siteId: string): boolean { return existsSync(getZipPath(siteId)); }
+export function readZip(siteId: string): Buffer { return readFileSync(getZipPath(siteId)); }

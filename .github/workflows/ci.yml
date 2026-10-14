@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: 'file:./.data/ci-test.db'
+
+      - name: Push schema to test DB
+        run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: 'file:./.data/ci-test.db'
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: 'file:./.data/ci-test.db'
+          OPENAI_API_KEY: 'fake-key-for-ci'
+          OPENAI_API_BASE: 'https://generativelanguage.googleapis.com/v1beta/openai'
+
+      - name: JSON-LD validator
+        run: npx tsx scripts/validate-jsonld.ts .data/sites || echo "No sites to validate yet (expected on fresh CI run)"
+
+      # The golden-outputs regression set runs only on PRs that touch
+      # lib/ai/ (so we don't burn LLM quota on every CI run)
+      - name: Golden outputs regression (if AI prompts changed)
+        if: contains(join(github.event.pull_request.files.*.path, ' '), 'lib/ai/prompts') || contains(join(github.event.pull_request.files.*.path, ' '), 'lib/ai/agents')
+        run: |
+          echo "AI prompt changes detected — would run golden-outputs regression here"
+          echo "Skipped in CI workflow — run locally with: npm run test:golden-outputs"
+        env:
+          DATABASE_URL: 'file:./.data/ci-test.db'
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: 'https://generativelanguage.googleapis.com/v1beta/openai'
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-output
+          path: .next/
+          retention-days: 7

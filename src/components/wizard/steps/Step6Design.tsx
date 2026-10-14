@@ -1,0 +1,18 @@
+'use client';
+import { useWizardStore } from '../../../lib/wizard/store';
+import { WizardShell, WizardAside } from '../WizardShell';
+import { Check } from '@phosphor-icons/react';
+const THEMES = [{id:'cafe',name:'Sunday Coffee',vertical:'Cafe',image:'/assets/cafe-color.png'},{id:'finance',name:'Forma',vertical:'Finance',image:'/assets/finance-color.png'},{id:'store',name:'Studio Form',vertical:'Retail',image:'/assets/store-color.png'},{id:'school',name:'Brightwood',vertical:'Education',image:'/assets/school-color.png'},{id:'workspace',name:'Gather',vertical:'Teams',image:'/assets/workspace-color.png'},{id:'minimal',name:'Plain Jane',vertical:'Minimal',image:'/assets/cafe-color.png'}];
+const TIERS = [{id:'budget' as const,name:'Budget',detail:'1 hero image, Gemini Flash Lite',pricePerImage:0.034,imageCount:4},{id:'standard' as const,name:'Standard',detail:'Hero + 1 per service, Gemini Flash',pricePerImage:0.040,imageCount:8},{id:'premium' as const,name:'Premium',detail:'Full library, GPT Image',pricePerImage:0.046,imageCount:14}];
+export function Step6Design() {
+  const { basicInfo, services, locations, blogTitles, themeId, setThemeId, imageTier, setImageTier } = useWizardStore();
+  const selectedTheme = THEMES.find((t)=>t.id===themeId)||null;
+  const selectedTier = TIERS.find((t)=>t.id===imageTier)!;
+  const imageCost = selectedTier.pricePerImage * selectedTier.imageCount;
+  return <WizardShell stepEyebrow="Step 6 of 8" stepTitle="Pick a look. Decide on images." stepDescription="Start with six themes. Twenty-five more vertical packs ship with the v1.0 release." nextDisabled={!themeId} aside={<WizardAside businessName={basicInfo.businessName} niche={basicInfo.niche} servicesCount={services.length} locationsCount={locations.length} blogCount={blogTitles.length} theme={selectedTheme?.name} imageTier={imageTier} costSoFar={services.length*0.0003+locations.length*0.0004+blogTitles.length*0.0002+(services.length+locations.length+blogTitles.length+4)*0.0002+imageCost} />}>
+    <div className="mb-md" style={{ fontSize: 13, fontWeight: 650, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Theme</div>
+    <div className="theme-grid">{THEMES.map((theme)=><div key={theme.id} className={'theme-card '+(themeId===theme.id?'selected':'')} onClick={()=>setThemeId(theme.id)} role="button" tabIndex={0} aria-pressed={themeId===theme.id} onKeyDown={(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setThemeId(theme.id);}}}><div className="theme-thumb"><img src={theme.image} alt={theme.name+' theme preview'} /><div className="theme-check" aria-hidden="true"><Check size={14} weight="bold"/></div></div><div className="theme-body"><div className="theme-name">{theme.name}</div><div className="theme-vertical">{theme.vertical}</div></div></div>)}</div>
+    <div className="mt-lg mb-md" style={{ fontSize: 13, fontWeight: 650, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Image Tier</div>
+    <div className="cost-calc"><h3>Image Cost Calculator</h3><p className="cost-calc-sub">Three tiers, transparent pricing.</p>{TIERS.map((tier)=>{ const cost = tier.pricePerImage*tier.imageCount; const selected = imageTier===tier.id; return <div key={tier.id} className={'cost-tier '+(selected?'selected':'')} onClick={()=>setImageTier(tier.id)} role="button" tabIndex={0} aria-pressed={selected} onKeyDown={(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setImageTier(tier.id);}}}><div className="cost-tier-info"><span className="cost-tier-name">{tier.name}</span><span className="cost-tier-detail">{tier.detail} · {tier.imageCount} images</span></div><span className="cost-tier-price">{'$'+cost.toFixed(3)}</span></div>; })}</div>
+  </WizardShell>;
+}

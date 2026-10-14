@@ -1,0 +1,199 @@
+// Prisma schema for LocalLoop — COMPLETE MERGE
+// Dev: SQLite (no setup). Prod: change `provider` to `postgresql` + set DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id                       String    @id @default(cuid())
+  name                     String?
+  email                    String    @unique
+  emailVerified            DateTime?
+  image                    String?
+  plan                     String    @default("free")
+  openrouterKeyEncrypted   String?
+  vercelTokenEncrypted     String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  accounts                accounts[]
+  sessions                sessions[]
+  projects                projects[]
+  ledger                  openrouter_ledger[]
+  spendCaps               spend_caps[]
+  authenticators          authenticators[]
+}
+
+model accounts {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model sessions {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model verification_tokens {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model authenticators {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user                 users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, credentialID])
+}
+
+model projects {
+  id           String   @id @default(cuid())
+  userId       String
+  businessName String?
+  niche        String?
+  status       String   @default("draft")
+  currentStep  Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps        project_steps[]
+  services     services[]
+  locations    locations[]
+  blog_titles  blog_titles[]
+  keywords     keywords[]
+  sites        sites[]
+  ledger       openrouter_ledger[]
+  @@index([userId])
+}
+
+model project_steps {
+  id          String   @id @default(cuid())
+  projectId   String
+  stepNumber  Int
+  data        String
+  completedAt DateTime @default(now())
+  project     projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@unique([projectId, stepNumber])
+  @@index([projectId])
+}
+
+model services {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  aiGenerated Boolean @default(false)
+  project     projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
+}
+
+model locations {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  strategy    String  @default("neighborhoods")
+  aiGenerated Boolean @default(false)
+  project     projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
+}
+
+model blog_titles {
+  id          String  @id @default(cuid())
+  projectId   String
+  title       String
+  aiGenerated Boolean @default(false)
+  project     projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
+}
+
+model keywords {
+  id        String  @id @default(cuid())
+  projectId String
+  pageType  String
+  primary   String
+  secondary String
+  longTail  String
+  project   projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
+  @@unique([projectId, pageType])
+}
+
+model sites {
+  id           String   @id @default(cuid())
+  projectId    String
+  businessName String?
+  theme        String
+  imageTier    String   @default("standard")
+  status       String   @default("draft")
+  deployUrl    String?
+  costUsd      Float    @default(0)
+  pageCount    Int      @default(0)
+  generatedAt  DateTime?
+  createdAt    DateTime @default(now())
+  project      projects    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model openrouter_ledger {
+  id               String   @id @default(cuid())
+  userId           String
+  projectId        String?
+  step             String
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  costUsd          Float    @default(0)
+  createdAt        DateTime @default(now())
+  user             users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project          projects? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  @@index([userId])
+  @@index([projectId])
+  @@index([createdAt])
+  @@index([step])
+}
+
+model spend_caps {
+  id            String   @id @default(cuid())
+  userId        String
+  monthYear     String
+  capUsd        Float
+  spentUsd      Float    @default(0)
+  notify80Sent  Boolean  @default(false)
+  notify100Sent Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+  user          users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, monthYear])
+  @@index([userId, monthYear])
+}
